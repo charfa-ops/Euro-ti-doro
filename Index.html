@@ -1,0 +1,248 @@
+
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>محول اليورو</title>
+<style>
+/* إعدادات أساسية */
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  direction: rtl;
+  background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+/* الشاشات */
+.screen {
+  display: none;
+  width: 100%;
+  max-width: 450px;
+  padding: 20px;
+}
+.screen.active {
+  display: block;
+}
+
+/* البطاقة */
+.card {
+  background: #ffffffdd;
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  text-align: center;
+}
+
+/* العناوين */
+h2 {
+  margin-bottom: 25px;
+  color: #333;
+}
+
+/* الحقول */
+input {
+  width: 90%;
+  padding: 14px;
+  font-size: 18px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  margin-bottom: 20px;
+}
+
+/* الأزرار */
+button {
+  width: 90%;
+  padding: 14px;
+  font-size: 18px;
+  margin: 8px 0;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+button:hover { opacity: 0.9; }
+
+button.voice {
+  background-color: #10b981;
+  color: white;
+}
+button.confirm {
+  background-color: #3b82f6;
+  color: white;
+}
+button.reset {
+  background-color: #f59e0b;
+  color: white;
+}
+
+/* النتائج */
+.result {
+  font-size: 22px;
+  margin-top: 20px;
+  color: #111;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<!-- الشاشة 1 -->
+<div class="screen active" id="screen1">
+  <div class="card">
+    <h2>كم سعر 100 يورو؟</h2>
+    <input id="rateInput" placeholder="أدخل السعر أو انطق">
+    <button class="voice" onclick="voiceInput('rateInput')">🎤 نطق</button>
+    <button class="confirm" onclick="confirmRate()">موافق</button>
+  </div>
+</div>
+
+<!-- الشاشة 2 -->
+<div class="screen" id="screen2">
+  <div class="card">
+    <h2>كم تريد أن تحوّل باليورو؟</h2>
+    <input id="euroInput" placeholder="عدد اليورو">
+    <button class="voice" onclick="voiceInput('euroInput')">🎤 نطق</button>
+    <button class="confirm" onclick="confirmEuro()">موافق</button>
+  </div>
+</div>
+
+<!-- الشاشة 3 -->
+<div class="screen" id="screen3">
+  <div class="card">
+    <h2>النتيجة</h2>
+    <div class="result" id="numericResult"></div>
+    <div class="result" id="textResult"></div>
+    <button class="reset" onclick="resetApp()">🔄 إعادة الحساب</button>
+  </div>
+</div>
+
+<script>
+let exchangeRate = 0;
+
+/* 🎤 إدخال صوتي متقدم */
+function voiceInput(id) {
+  const r = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  r.lang = 'ar';
+  r.start();
+  r.onresult = e => {
+    const text = e.results[0][0].transcript;
+    const num = parseArabicSentence(text);
+    document.getElementById(id).value = num || text;
+  };
+}
+
+/* 🧠 تحليل جملة عربية كاملة إلى رقم (فصحى + لهجة محلية) */
+function parseArabicSentence(text) {
+  text = text.replace(/حوالي|تقريبا|تقريبًا|سعر|الصرف|هو|يورو|دينار/g, '');
+  const words = text.split(' ');
+
+  const map = {
+    /* فصحى */
+    صفر:0, واحد:1, اثنين:2, اثنان:2, ثلاثة:3, أربعة:4, خمس:5, خمسة:5,
+    ستة:6, سبعة:7, ثمانية:8, تسعة:9, عشرة:10,
+    عشرون:20, ثلاثون:30, أربعون:40, خمسون:50, ستون:60, سبعون:70,
+    ثمانون:80, تسعون:90,
+    مئة:100, مائة:100, مئتين:200, مئتان:200,
+    ألف:1000, ألفين:2000,
+    مليون:200000, مليونين:400000,
+    /* لهجة محلية */
+    خمسمية:500, ستمية:600, سبعمية:700, تمانمية:800, تسعمية:900
+  };
+
+  let total = 0;
+  let current = 0;
+
+  words.forEach(w => {
+    if (map[w] !== undefined) {
+      if (map[w] >= 1000) {
+        current = (current || 1) * map[w];
+        total += current;
+        current = 0;
+      } else {
+        current += map[w];
+      }
+    }
+  });
+
+  return total + current || null;
+}
+
+/* ✅ تصحيح سعر الصرف */
+function normalizeRate(v) {
+  let n = parseInt(v);
+  if (isNaN(n)) return null;
+  while (n < 520000) n *= 10;
+  return (n >= 520000 && n <= 600000) ? n : null;
+}
+
+function confirmRate() {
+  const n = normalizeRate(rateInput.value);
+  if (!n) return alert('قيمة غير صحيحة');
+  exchangeRate = n;
+  show(2);
+}
+
+function confirmEuro() {
+  const euro = parseInt(euroInput.value);
+  if (isNaN(euro)) return alert('قيمة غير صحيحة');
+  const result = Math.round((euro * exchangeRate) / 100);
+  showResult(result);
+}
+
+/* 🔢 تحويل الرقم إلى كتابة */
+function numberToWords(n) {
+  let parts = [];
+  let millions = Math.floor(n / 200000);
+  let rem = n % 200000;
+
+  if (millions === 1) parts.push('مليون');
+  else if (millions === 2) parts.push('مليونين');
+  else if (millions > 2) parts.push(millions + ' ملايين');
+
+  let hundredThousands = Math.floor(rem / 100000);
+  rem %= 100000;
+  if (hundredThousands) parts.push('مائة');
+
+  let tenThousands = Math.floor(rem / 10000);
+  rem %= 10000;
+  if (tenThousands)
+    parts.push(['','عشرة','عشرون','ثلاثون','أربعون','خمسون','ستون','سبعون','ثمانون','تسعون'][tenThousands] + ' ألفًا');
+
+  let hundreds = Math.floor(rem / 100);
+  if (hundreds)
+    parts.push(['','مائة','مئتان','ثلاث مئة','أربع مئة','خمس مئة','ست مئة','سبع مئة','ثمان مئة','تسع مئة'][hundreds]);
+
+  return parts.join(' و ');
+}
+
+/* عرض النتيجة */
+function showResult(v) {
+  numericResult.innerText = v.toLocaleString('fr-FR');
+  const text = numberToWords(v);
+  textResult.innerText = text;
+  speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  show(3);
+}
+
+/* 🔄 إعادة الحساب */
+function resetApp() {
+  exchangeRate = 0;
+  rateInput.value = '';
+  euroInput.value = '';
+  show(1);
+}
+
+/* تبديل الشاشات */
+function show(n) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen'+n).classList.add('active');
+}
+</script>
+
+</body>
+  </html>
